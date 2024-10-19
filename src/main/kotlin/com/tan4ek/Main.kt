@@ -1,6 +1,7 @@
 package com.tan4ek
 
 import java.time.Duration
+import java.util.concurrent.ConcurrentSkipListSet
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -10,7 +11,7 @@ import org.hid4java.HidServicesListener
 import org.hid4java.HidServicesSpecification
 import org.hid4java.event.HidServicesEvent
 
-const val version = "1.0.0"
+const val version = "1.0.1"
 
 const val DEFAULT_PRODUCT_ID: Int = 0xb4c2
 const val DEFAULT_VENDOR_ID: Int = 0x8d1d
@@ -25,14 +26,21 @@ class HidKeyboardListener(
     private val searchHidInfo: HidInfo,
     private val keyboardListener: KeyboardListener
 ) : HidServicesListener {
-    private var keyboardClientRef: AtomicReference<KeyboardClient?> = AtomicReference(null)
+    private val keyboardClientRef: AtomicReference<KeyboardClient?> = AtomicReference(null)
+    private val bufferedKeyboardClientRef = AtomicReference<KeyboardClient?>(null)
 
     override fun hidDeviceAttached(event: HidServicesEvent) = underSync(this) {
         if (event.hidDevice.hidInfo() == searchHidInfo) {
             logger.info("Keyboard device is attached: ${event.hidDevice}")
             val keyboardClient = KeyboardClient(event.hidDevice)
-            keyboardClientRef.set(keyboardClient)
-            keyboardListener.onKeyboardAttached(keyboardClient)
+            if (keyboardClientRef.get() != null) {
+                logger.info("Keyboard device is already attached, buffering new client")
+                bufferedKeyboardClientRef.set(keyboardClient)
+                return@underSync
+            } else {
+                keyboardClientRef.set(keyboardClient)
+                keyboardListener.onKeyboardAttached(keyboardClient)
+            }
         }
     }
 
@@ -42,6 +50,11 @@ class HidKeyboardListener(
 
             keyboardListener.onKeyboardDetached(keyboardClientRef.get()!!)
             keyboardClientRef.set(null)
+            if (bufferedKeyboardClientRef.get() != null) {
+                val bufferedClient = bufferedKeyboardClientRef.getAndSet(null)!!
+                keyboardClientRef.set(bufferedClient)
+                keyboardListener.onKeyboardAttached(bufferedClient)
+            }
         }
     }
 
@@ -83,22 +96,26 @@ class KeyboardProcedure(private val keyboardClient: KeyboardClient, private val 
         keyboardClient.send(Message.Version(version))
         Thread.sleep(waitAfterFirstMessage)
         while (isRunning.get()) {
+            if (!keyboardClient.isOpen()) {
+                logger.info("Device is closed, stopping communication")
+                return@retry
+            }
             try {
                 val cpuUsage = hardwareMonitor.cpuUsage()
                 val availableRam = hardwareMonitor.ramUsage()
 
-                try {
-                    keyboardClient.send(
-                        Message.HardwareState(
-                            cpuUsage.toInt().toShort(),
-                            availableRam.toInt().toShort()
-                        )
+                val response = keyboardClient.send(
+                    Message.HardwareState(
+                        cpuUsage.toInt().toShort(),
+                        availableRam.toInt().toShort()
                     )
-                } catch (e: Exception) {
-                    logger.info("Error reading data: $e")
+                )
+                if (response is Response.Error) {
+                    logger.info("Error sending data: ${response.message}")
+                    Thread.sleep(waitAfterFailure)
+                } else {
+                    Thread.sleep(refreshInterval)
                 }
-
-                Thread.sleep(refreshInterval)
             } catch (e: Exception) {
                 logger.info("Error: $e")
                 Thread.sleep(waitAfterFailure)
