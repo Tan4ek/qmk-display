@@ -1,0 +1,45 @@
+name: Build Native Image
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+jobs:
+  build-native-image:
+    name: Building executable artifact for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: 'graalvm'
+          components: "native-image"
+
+      - name: Grant Execute Permissions for Gradlew
+        run: chmod +x gradlew
+
+      - name: Extract application version
+        run: echo "::set-output name=version::$(./gradlew properties | grep 'version:' | awk '{print $2}')"
+        id: version
+
+      - name: Build Native Image
+        run: ./gradlew nativeCompile
+
+      - name: Copy artifact
+        run: cp ./build/native/nativeCompile/qmk-display ./qmk-display-${{ matrix.os }}-${{ steps.version.outputs.version }}
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: ${{ steps.version.outputs.version }}
+          files: ./qmk-display-${{ matrix.os }}-${{ steps.version.outputs.version }}

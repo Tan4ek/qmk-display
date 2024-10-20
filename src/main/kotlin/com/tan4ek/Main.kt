@@ -1,7 +1,5 @@
 package com.tan4ek
 
-import java.nio.file.Files
-import java.nio.file.Path
 import java.time.Duration
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -242,7 +240,7 @@ fun main(args: Array<String>) {
 
         Runtime.getRuntime().addShutdownHook(
             Thread {
-                logger.info("Shutting dow the application")
+                logger.info("Shutting down the application")
                 keyboardProcedureManager.close()
                 hidServices.shutdown()
             }
