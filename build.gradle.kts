@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.tan4ek"
-version = "1.0.1" // change it also in the code
+version = "1.1.0" // change it also in the code
 
 repositories {
     mavenCentral()

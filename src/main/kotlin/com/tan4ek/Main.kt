@@ -1,7 +1,8 @@
 package com.tan4ek
 
+import java.nio.file.Files
+import java.nio.file.Path
 import java.time.Duration
-import java.util.concurrent.ConcurrentSkipListSet
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -11,7 +12,7 @@ import org.hid4java.HidServicesListener
 import org.hid4java.HidServicesSpecification
 import org.hid4java.event.HidServicesEvent
 
-const val version = "1.0.1"
+const val version = "1.1.0"
 
 const val DEFAULT_PRODUCT_ID: Int = 0xb4c2
 const val DEFAULT_VENDOR_ID: Int = 0x8d1d
@@ -79,6 +80,7 @@ class KeyboardProcedure(private val keyboardClient: KeyboardClient, private val 
     private val refreshInterval = Duration.ofSeconds(1)
     private val waitAfterFailure = Duration.ofSeconds(2)
     private val waitAfterFirstMessage = Duration.ofSeconds(2)
+    private val waitAfterImage = Duration.ofSeconds(3)
 
     override fun run() = retry {
         if (!isRunning.get()) {
@@ -95,6 +97,8 @@ class KeyboardProcedure(private val keyboardClient: KeyboardClient, private val 
         }
         keyboardClient.send(Message.Version(version))
         Thread.sleep(waitAfterFirstMessage)
+        keyboardClient.send(Message.Image(Images.qmkLogoImage))
+        Thread.sleep(waitAfterImage)
         while (isRunning.get()) {
             if (!keyboardClient.isOpen()) {
                 logger.info("Device is closed, stopping communication")
