@@ -1,4 +1,8 @@
 # QMK Display
+![example_cpu-ram.jpg](example_cpu-ram.jpg)
+
+# How to configure keyboard
+Copy or integrate [keymap.c](https://github.com/Tan4ek/qmk_userspace/blob/main/keyboards/splitkb/aurora/lily58/keymaps/tan4ek-Lyli58/keymap.c) to your keymap.
 
 # How to build native app
 1. Use java 21.0.3-graal version (via sdkman)
